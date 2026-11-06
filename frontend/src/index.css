@@ -1,0 +1,101 @@
+/* ==========================================================================
+   BRADESCO DESIGN SYSTEM - CSS TOKENS & RESET
+   Em conformidade com o Brandbook Oficial Bradesco (Fev 2026)
+   ========================================================================== */
+
+:root {
+  /* Cores Institucionais Oficiais Bradesco (Brandbook Páginas 10 e 21) */
+  --bradesco-red: #CC092F;          /* PMS 186 - Vermelho Bradesco */
+  --bradesco-red-hover: #B5082A;
+  --bradesco-red-active: #9E0724;
+  --bradesco-dark-red: #900F15;     /* PMS 7427 - Vermelho Escuro Bradesco */
+  --bradesco-vibrant-red: #E00B39;  /* Cor de apoio (p.22) */
+  --bradesco-soft-red: #D12244;
+
+  /* Fontes (Bradesco Sans / Plus Jakarta Sans) */
+  --font-family-base: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Modo Claro Padrão */
+  --bg-page: #F6F7F9;
+  --bg-header: rgba(255, 255, 255, 0.85);
+  --bg-card: #FFFFFF;
+  --bg-card-secondary: #F8F9FA;
+  --bg-input: #FFFFFF;
+  --border-input: #D8DCE3;
+  --border-input-focus: #CC092F;
+  --text-primary: #18191B;
+  --text-secondary: #585D69;
+  --text-muted: #8E95A5;
+  --card-border: #E5E8ED;
+  --card-shadow: 0 16px 36px -8px rgba(18, 28, 45, 0.08), 0 0 1px 1px rgba(18, 28, 45, 0.04);
+  --hero-bg-gradient: linear-gradient(135deg, #F3F4F6 0%, #FFFFFF 100%);
+  --accent-glow: rgba(204, 9, 47, 0.12);
+  --footer-bg: #FFFFFF;
+  --footer-border: #E9ECEF;
+  --tag-bg: rgba(204, 9, 47, 0.08);
+  --tag-text: #CC092F;
+  --watermark-color: #CC092F;
+}
+
+/* Modo Escuro (Dark Mode) - Alto contraste e elegância contemporânea */
+[data-theme='dark'] {
+  --bg-page: #0C0E12;
+  --bg-header: rgba(16, 18, 24, 0.85);
+  --bg-card: #151821;
+  --bg-card-secondary: #1D212D;
+  --bg-input: #10121A;
+  --border-input: #2D3342;
+  --border-input-focus: #FF3B5C;
+  --text-primary: #F7F8FA;
+  --text-secondary: #A6AFBF;
+  --text-muted: #6B768B;
+  --card-border: #232836;
+  --card-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.55), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  --hero-bg-gradient: linear-gradient(135deg, #13161F 0%, #0E1017 100%);
+  --accent-glow: rgba(204, 9, 47, 0.3);
+  --footer-bg: #0F1117;
+  --footer-border: #202432;
+  --tag-bg: rgba(204, 9, 47, 0.2);
+  --tag-text: #FF4D6D;
+  --watermark-color: #FFFFFF;
+}
+
+/* Reset básico e tipografia */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-family-base);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  transition: background-color 0.35s ease, color 0.35s ease;
+  overflow-x: hidden;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Utilitários visuais */
+.select-none {
+  user-select: none;
+}
