@@ -1,7 +1,5 @@
 # Sistema de Financiamentos — Squad 44
 
-Comece pelo **[LEIA_PRIMEIRO.md](LEIA_PRIMEIRO.md)**: instalação, configuração da senha, execução no IntelliJ e roteiro da apresentação.
-
 ## Estrutura
 
 - `backend/`: Java 17, Spring Boot, Maven, JPA, Spring Security e Flyway.
