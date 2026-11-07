@@ -42,7 +42,8 @@ public class BemDetalhesService {
           "O bem está vinculado a uma simulação e não pode ser excluído.");
     }
     // A FK do banco continua protegendo contra uma simulação criada concorrentemente.
-    bens.deleteAndFlush(bem);
+    bens.delete(bem);
+    bens.flush();
   }
 
   private Bem doCliente(UUID clienteId, UUID bemId) {
