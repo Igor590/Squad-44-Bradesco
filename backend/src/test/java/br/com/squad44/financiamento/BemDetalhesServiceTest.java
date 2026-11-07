@@ -66,13 +66,14 @@ class BemDetalhesServiceTest {
     ResponseStatusException e = assertThrows(ResponseStatusException.class,
         () -> service.excluir(cliente, bemId));
     assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, e.getStatusCode());
-    verify(bens, never()).deleteAndFlush(any(Bem.class));
+    verify(bens, never()).delete(any(Bem.class));
   }
 
   @Test
   void excluiBemNaoUtilizado() {
     when(bens.findByIdAndClienteId(bemId, cliente)).thenReturn(Optional.of(bem));
     service.excluir(cliente, bemId);
-    verify(bens).deleteAndFlush(bem);
+    verify(bens).delete(bem);
+    verify(bens).flush();
   }
 }
