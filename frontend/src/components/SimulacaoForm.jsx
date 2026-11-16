@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { api, brl } from "../api";
+const TAXA_MINIMA = 0.82;
+const TAXA_MAXIMA = 1.17;
+
 export default function SimulacaoForm({ bemCadastrado, onSuccessSolicitacao }) {
   const [entrada, setEntrada] = useState(
     bemCadastrado ? (Number(bemCadastrado.valorNumerico) * 0.2).toFixed(2) : "",
@@ -17,6 +20,10 @@ export default function SimulacaoForm({ bemCadastrado, onSuccessSolicitacao }) {
   async function simular(e) {
     e.preventDefault();
     if (busy) return;
+    if (!(Number(taxa) >= TAXA_MINIMA && Number(taxa) <= TAXA_MAXIMA)) {
+      setError("Informe uma taxa mensal de 0,82% a 1,17%.");
+      return;
+    }
     setBusy(true);
     setError("");
     setSimulation(null);
@@ -115,13 +122,17 @@ export default function SimulacaoForm({ bemCadastrado, onSuccessSolicitacao }) {
                 id="sim-taxa"
                 className="form-input"
                 type="number"
-                min="0"
-                max="100"
+                min={TAXA_MINIMA}
+                max={TAXA_MAXIMA}
+                aria-describedby="sim-taxa-faixa"
                 step="0.000001"
                 required
                 value={taxa}
                 onChange={(e) => change(setTaxa, e.target.value)}
               />
+              <p id="sim-taxa-faixa" className="form-security-footer">
+                De 0,82% a 1,17% ao mês.
+              </p>
             </div>
           </div>
           <button className="btn-primary-bradesco" disabled={busy}>

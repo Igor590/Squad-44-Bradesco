@@ -920,6 +920,35 @@
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
+.registration-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.registration-alert > svg {
+  flex-shrink: 0;
+}
+
+.registration-alert.success {
+  margin-bottom: 1rem;
+  background-color: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #087153;
+}
+
+.registration-alert.error {
+  color: #b42318;
+}
+
+.theme-dark .registration-alert.success {
+  color: #6ee7b7;
+}
+
+.theme-dark .registration-alert.error {
+  color: #fca5a5;
+}
+
 /* ==========================================================================
    TELA DE SUCESSO (APÓS LOGIN / CADASTRO)
    ========================================================================== */

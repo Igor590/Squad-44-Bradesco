@@ -11,8 +11,11 @@ import org.springframework.web.bind.annotation.*;
 public class FinanciamentoController {
   private final FinanciamentoService service;
 
-  public FinanciamentoController(FinanciamentoService s) {
+  private final ContratacaoService contratacao;
+
+  public FinanciamentoController(FinanciamentoService s, ContratacaoService contratacao) {
     service = s;
+    this.contratacao = contratacao;
   }
 
   private UUID id(Authentication a) {
@@ -46,5 +49,15 @@ public class FinanciamentoController {
   @GetMapping("/propostas")
   public List<Map<String, Object>> propostas(Authentication a) {
     return service.listar(id(a));
+  }
+
+  @GetMapping("/financiamentos")
+  public List<ContratacaoService.Contrato> financiamentos(Authentication a) {
+    return contratacao.listar(id(a));
+  }
+
+  @GetMapping("/financiamentos/{id}")
+  public ContratacaoService.Detalhes financiamento(Authentication a, @PathVariable UUID id) {
+    return contratacao.detalhar(id(a), id);
   }
 }

@@ -7,6 +7,9 @@ import RegisterForm from "./components/RegisterForm";
 import BensForm from "./components/BensForm";
 import SimulacaoForm from "./components/SimulacaoForm";
 import AcompanhamentoView from "./components/AcompanhamentoView";
+import MeusFinanciamentosView from "./components/MeusFinanciamentosView";
+import ParcelasView from "./components/ParcelasView";
+import HistoricoView from "./components/HistoricoView";
 import InstitutionalFooter from "./components/InstitutionalFooter";
 import {
   ShieldCheck,
@@ -14,8 +17,101 @@ import {
   UserCheck,
   LogOut,
   ChevronRight,
+  CircleCheck,
 } from "lucide-react";
 import "./App.css";
+
+const PARCELAS_INICIAIS = [
+  {
+    id: 1,
+    numero: 1,
+    vencimento: "15/08/2026",
+    valorOriginal: 2394.82,
+    encargosAtraso: 0,
+    status: "PAGA",
+    valorTotalPago: 2394.82,
+    dataPagamento: "2026-08-14",
+    formaPagamento: "Débito em Conta Bradesco",
+  },
+  {
+    id: 2,
+    numero: 2,
+    vencimento: "15/09/2026",
+    valorOriginal: 2394.82,
+    encargosAtraso: 0,
+    status: "PAGA",
+    valorTotalPago: 2394.82,
+    dataPagamento: "2026-09-15",
+    formaPagamento: "PIX",
+  },
+  {
+    id: 3,
+    numero: 3,
+    vencimento: "15/10/2026",
+    valorOriginal: 2394.82,
+    encargosAtraso: 68.45,
+    status: "ATRASADA",
+    valorTotalPago: 0,
+    dataPagamento: null,
+    formaPagamento: null,
+  },
+  {
+    id: 4,
+    numero: 4,
+    vencimento: "15/11/2026",
+    valorOriginal: 2394.82,
+    encargosAtraso: 0,
+    status: "ABERTA",
+    valorTotalPago: 0,
+    dataPagamento: null,
+    formaPagamento: null,
+  },
+  {
+    id: 5,
+    numero: 5,
+    vencimento: "15/12/2026",
+    valorOriginal: 2394.82,
+    encargosAtraso: 0,
+    status: "ABERTA",
+    valorTotalPago: 0,
+    dataPagamento: null,
+    formaPagamento: null,
+  },
+  {
+    id: 6,
+    numero: 6,
+    vencimento: "15/01/2027",
+    valorOriginal: 2394.82,
+    encargosAtraso: 0,
+    status: "ABERTA",
+    valorTotalPago: 0,
+    dataPagamento: null,
+    formaPagamento: null,
+  },
+];
+
+const HISTORICO_INICIAL = [
+  {
+    idPagamento: "PAG-2026-0001",
+    contratoId: "CTR-2026-00841",
+    bemDescricao: "Honda Civic 2.0 Flex 2023",
+    numeroParcela: 1,
+    valorPago: 2394.82,
+    formaPagamento: "Débito em Conta Bradesco",
+    dataPagamento: "2026-08-14",
+    observacao: "Débito automático agendado",
+  },
+  {
+    idPagamento: "PAG-2026-0002",
+    contratoId: "CTR-2026-00841",
+    bemDescricao: "Honda Civic 2.0 Flex 2023",
+    numeroParcela: 2,
+    valorPago: 2394.82,
+    formaPagamento: "PIX",
+    dataPagamento: "2026-09-15",
+    observacao: "Quitação via chave PIX Bradesco",
+  },
+];
 
 export function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -30,11 +126,12 @@ export function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
   const [notice, setNotice] = useState("");
+  const [registrationSucceeded, setRegistrationSucceeded] = useState(false);
   const [bens, setBens] = useState([]);
   // Aba do formulário público inicial (Login/Cadastro)
   const [publicTab, setPublicTab] = useState("login");
 
-  // Aba interna do perfil logado ('bens' | 'simulacao' | 'acompanhamento')
+  // Aba interna do perfil logado ('bens' | 'simulacao' | 'acompanhamento' | 'contratos' | 'parcelas' | 'historico')
   const [internalTab, setInternalTab] = useState("bens");
 
   const with2DEffect = true;
@@ -42,6 +139,11 @@ export function App() {
   // Dados armazenados durante a sessão do utilizador
   const [cadastradoBem, setCadastradoBem] = useState(null);
   const [propostas, setPropostas] = useState([]);
+
+  // Estados das novas funcionalidades (Contratos, Parcelas e Histórico)
+  const [parcelas, setParcelas] = useState(PARCELAS_INICIAIS);
+  const [historicoPagamentos, setHistoricoPagamentos] =
+    useState(HISTORICO_INICIAL);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -67,6 +169,7 @@ export function App() {
     );
     setPropostas(proposals);
   }
+
   useEffect(() => {
     let active = true;
     api("/auth/me")
@@ -87,6 +190,8 @@ export function App() {
       });
     const expired = () => {
       setCurrentUser(null);
+      setParcelas(PARCELAS_INICIAIS);
+      setHistoricoPagamentos(HISTORICO_INICIAL);
       setBens([]);
       setPropostas([]);
       setCadastradoBem(null);
@@ -98,7 +203,9 @@ export function App() {
       window.removeEventListener("sessao-expirada", expired);
     };
   }, []);
+
   const handleLoginSuccess = async (user) => {
+    setRegistrationSucceeded(false);
     setCurrentUser(user);
     setNotice("");
     setInternalTab("bens");
@@ -108,10 +215,13 @@ export function App() {
       setNotice(e.message);
     }
   };
+
   const handleRegisterSuccess = () => {
     setPublicTab("login");
-    setNotice("Cadastro realizado! Entre com seu CPF ou e-mail e sua senha.");
+    setNotice("");
+    setRegistrationSucceeded(true);
   };
+
   const handleLogout = async () => {
     try {
       await api("/auth/logout", { method: "POST" });
@@ -120,17 +230,21 @@ export function App() {
       return;
     }
     setCurrentUser(null);
+    setParcelas(PARCELAS_INICIAIS);
+    setHistoricoPagamentos(HISTORICO_INICIAL);
     setCadastradoBem(null);
     setBens([]);
     setPropostas([]);
     setPublicTab("login");
     setNotice("");
   };
+
   const handleCadastroBemSuccess = (bem) => {
     setBens((prev) => [...prev, bem]);
     setCadastradoBem({ ...bem, valorFormatado: brl(bem.valorNumerico) });
     setInternalTab("simulacao");
   };
+
   const handleSolicitacaoSuccess = (proposta) => {
     setPropostas((prev) => [
       proposta,
@@ -138,6 +252,45 @@ export function App() {
     ]);
     setInternalTab("acompanhamento");
   };
+
+  const handleRegistrarPagamento = ({
+    parcelaId,
+    numeroParcela,
+    contratoId,
+    bemDescricao,
+    valorPago,
+    formaPagamento,
+    dataPagamento,
+    observacao,
+  }) => {
+    setParcelas((prev) =>
+      prev.map((p) =>
+        p.id === parcelaId
+          ? {
+              ...p,
+              status: "PAGA",
+              valorTotalPago: valorPago,
+              dataPagamento,
+              formaPagamento,
+            }
+          : p
+      )
+    );
+
+    const novoRegistro = {
+      idPagamento: `PAG-2026-${String(historicoPagamentos.length + 1).padStart(4, "0")}`,
+      contratoId,
+      bemDescricao,
+      numeroParcela,
+      valorPago,
+      formaPagamento,
+      dataPagamento,
+      observacao,
+    };
+
+    setHistoricoPagamentos((prev) => [novoRegistro, ...prev]);
+  };
+
   if (initializing)
     return (
       <main className="auth-card-box">
@@ -226,13 +379,22 @@ export function App() {
                   <button
                     type="button"
                     className={`tab-nav-btn ${publicTab === "register" ? "active" : ""}`}
-                    onClick={() => setPublicTab("register")}
+                    onClick={() => {
+                      setRegistrationSucceeded(false);
+                      setPublicTab("register");
+                    }}
                   >
                     <span>Criar conta</span>
                   </button>
                 </div>
 
                 <div className="auth-tab-content">
+                  {registrationSucceeded && (
+                    <div className="auth-alert registration-alert success" role="status">
+                      <CircleCheck size={18} aria-hidden="true" />
+                      <strong>Cadastro realizado com sucesso!</strong>
+                    </div>
+                  )}
                   {publicTab === "login" ? (
                     <LoginForm
                       onSuccessLogin={handleLoginSuccess}
@@ -246,7 +408,7 @@ export function App() {
             </section>
           </div>
         ) : (
-          /* TELA DE CADASTRO DE BENS & PORTAL AUTENTICADO: FORMULÁRIO COM O TAMANHO DA TELA (SEM HERO / SEM IMAGEM DA ESQUERDA) */
+          /* PORTAL AUTENTICADO */
           <div className="portal-full-container">
             {/* Barra Superior do Portal do Cliente */}
             <div className="portal-header-bar">
@@ -282,6 +444,27 @@ export function App() {
                   >
                     <span className="step-num">3</span>
                     <span className="step-text">Acompanhamento</span>
+                  </span>
+                  <ChevronRight size={14} className="stepper-arrow" />
+                  <span
+                    className={`stepper-step ${internalTab === "contratos" ? "active" : ""}`}
+                  >
+                    <span className="step-num">4</span>
+                    <span className="step-text">Contratos</span>
+                  </span>
+                  <ChevronRight size={14} className="stepper-arrow" />
+                  <span
+                    className={`stepper-step ${internalTab === "parcelas" ? "active" : ""}`}
+                  >
+                    <span className="step-num">5</span>
+                    <span className="step-text">Parcelas</span>
+                  </span>
+                  <ChevronRight size={14} className="stepper-arrow" />
+                  <span
+                    className={`stepper-step ${internalTab === "historico" ? "active" : ""}`}
+                  >
+                    <span className="step-num">6</span>
+                    <span className="step-text">Histórico</span>
                   </span>
                 </div>
               </div>
@@ -337,9 +520,32 @@ export function App() {
                   {propostas.length > 0 ? `(${propostas.length})` : ""}
                 </span>
               </button>
+              <button
+                type="button"
+                className={`portal-tab-btn ${internalTab === "contratos" ? "active" : ""}`}
+                onClick={() => setInternalTab("contratos")}
+              >
+                <span>4. Meus Financiamentos</span>
+              </button>
+              <button
+                type="button"
+                className={`portal-tab-btn ${internalTab === "parcelas" ? "active" : ""}`}
+                onClick={() => setInternalTab("parcelas")}
+              >
+                <span>5. Parcelas e Pagamentos</span>
+              </button>
+              <button
+                type="button"
+                className={`portal-tab-btn ${internalTab === "historico" ? "active" : ""}`}
+                onClick={() => setInternalTab("historico")}
+              >
+                <span>
+                  6. Histórico ({historicoPagamentos.length})
+                </span>
+              </button>
             </div>
 
-            {/* Card com o tamanho da tela para o Formulário de Cadastro de Bens */}
+            {/* Card Principal das Telas Internas */}
             <div className="portal-screen-card animate-zoom-in">
               {internalTab === "bens" && (
                 <>
@@ -389,6 +595,26 @@ export function App() {
                 <AcompanhamentoView
                   propostas={propostas}
                   onRefresh={async () => setPropostas(await api("/propostas"))}
+                />
+              )}
+              {["parcelas", "historico"].includes(internalTab) && (
+                <p className="auth-alert">
+                  Protótipo acadêmico. Parcelas e pagamentos são simulados e
+                  voltam ao exemplo ao sair ou recarregar a página.
+                </p>
+              )}
+              {internalTab === "contratos" && (
+                <MeusFinanciamentosView key={currentUser.id} />
+              )}
+              {internalTab === "parcelas" && (
+                <ParcelasView
+                  parcelas={parcelas}
+                  onRegistrarPagamento={handleRegistrarPagamento}
+                />
+              )}
+              {internalTab === "historico" && (
+                <HistoricoView
+                  historico={historicoPagamentos}
                 />
               )}
             </div>

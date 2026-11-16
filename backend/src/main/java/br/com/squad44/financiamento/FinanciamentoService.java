@@ -11,6 +11,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class FinanciamentoService {
+  private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+
+  private final ContratacaoService contratacao;
   private final ClienteRepository clientes;
   private final BemRepository bens;
   private final SimulacaoRepository simulacoes;
@@ -22,7 +25,9 @@ public class FinanciamentoService {
       BemRepository b,
       SimulacaoRepository s,
       PropostaRepository p,
-      ObjectMapper j) {
+      ObjectMapper j,
+      ContratacaoService contratacao) {
+    this.contratacao = contratacao;
     clientes = c;
     bens = b;
     simulacoes = s;
@@ -66,20 +71,21 @@ public class FinanciamentoService {
   @Transactional
   public Map<String, Object> solicitar(UUID cliente, UUID simulacaoId) {
     Simulacao s =
-        simulacoes.findByIdAndClienteId(simulacaoId, cliente).orElseThrow(() -> missing());
+        simulacoes.findForUpdateByIdAndClienteId(simulacaoId, cliente).orElseThrow(() -> missing());
     var anterior = propostas.findBySimulacaoId(simulacaoId);
     if (anterior.isPresent()) return view(anterior.get());
     Cliente c = clientes.findById(cliente).orElseThrow(() -> missing());
     ResultadoSimulacao r = decode(s.resultadoJson, ResultadoSimulacao.class);
-    int idade =
-        Period.between(c.nascimento, LocalDate.now(ZoneId.of("America/Sao_Paulo"))).getYears();
+    Instant solicitadaEm = Instant.now();
+    LocalDate dataSolicitacao = solicitadaEm.atZone(FUSO).toLocalDate();
+    int idade = Period.between(c.nascimento, dataSolicitacao).getYears();
     var analise =
         new ServicoAnalise(idade, c.renda, r.maiorParcela(), r.percentualFinanciado(), c.score);
     Proposta p = new Proposta();
     p.id = UUID.randomUUID();
     p.clienteId = cliente;
     p.simulacaoId = s.id;
-    p.criadaEm = Instant.now();
+    p.criadaEm = solicitadaEm;
     p.status = "EM_ANALISE";
     p.motivosJson = "[]";
     p.idadeAnalisada = idade;
@@ -89,6 +95,10 @@ public class FinanciamentoService {
     p.status = analise.aprovaStatus() ? "APROVADO" : "REPROVADO";
     p.motivosJson = encode(analise.getMotivosReprovacao());
     propostas.save(p);
+    if (analise.aprovaStatus()) {
+      Bem bem = bens.findById(s.bemId).orElseThrow();
+      contratacao.gerar(p.id, dataSolicitacao, c.nome, bem.descricao, r);
+    }
     return view(p);
   }
 

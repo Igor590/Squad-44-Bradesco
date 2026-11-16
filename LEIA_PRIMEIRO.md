@@ -6,7 +6,7 @@ Pessoal, deixei aqui o que precisamos para rodar e testar nossa versão integrad
 
 O cliente cria uma conta, entra com CPF ou e-mail, cadastra um bem e simula o financiamento. Antes de enviar a proposta, ele já consegue ver a parcela, os juros, o total com entrada e o cronograma. Ao enviar, recebe um protocolo e a decisão da análise. Se houver reprovação, o sistema mostra os motivos. Cada cliente só consegue consultar os próprios bens e propostas.
 
-A aprovação encerra o fluxo desta entrega. O cronograma da simulação mostra uma **previsão** das parcelas; geração do contrato, cobrança, registro de pagamentos e cálculo de atraso ficam para as próximas etapas.
+Uma nova proposta aprovada gera um contrato, um financiamento ativo e parcelas pendentes no PostgreSQL. Em **Meus Financiamentos**, o cliente pode consultar o contrato e seus vencimentos. As abas **Parcelas e Pagamentos** e **Histórico** ainda mostram dados demonstrativos. Pagamentos persistidos, quitação e encargos de atraso nas parcelas reais ficam para as próximas etapas.
 
 | Onde mexer | O que tem ali |
 |---|---|
@@ -33,7 +33,7 @@ Se já tiverem clonado, basta abrir essa pasta. A versão integrada tem `backend
 1. No pgAdmin, conectem ao servidor local com o usuário administrador `postgres`.
 2. Em **Login/Group Roles → Create → Login/Group Role**, criem `bradesco_app`. Escolham uma senha em **Definition** e ativem **Can login?** em **Privileges**. Não precisa marcar **Superuser**.
 3. Em **Databases → Create → Database**, criem `bradesco_financiamentos` e escolham `bradesco_app` como **Owner**.
-4. Deixem o banco vazio. Na primeira inicialização, o backend cria as tabelas `clientes`, `bens`, `simulacoes` e `propostas`. Depois disso, basta manter o serviço do PostgreSQL ligado; a janela do pgAdmin pode ficar fechada.
+4. Deixem o banco vazio. O Flyway aplica as migrations na inicialização. Em um banco existente, a V2 adiciona as tabelas de financiamentos e parcelas. Depois disso, basta manter o serviço do PostgreSQL ligado; a janela do pgAdmin pode ficar fechada.
 
 **3. Iniciar o backend.** No IntelliJ, abram **File → Open → `backend/pom.xml`** como projeto Maven. Selecionem o JDK 17 em **Project Structure → Project** e aguardem a importação das dependências.
 
@@ -63,10 +63,10 @@ Com o PostgreSQL ligado, executem `FinanciamentosApplication` no IntelliJ e rode
 
 ## Como conferir se a integração funcionou
 
-1. Em **Criar conta**, usem **Preencher dados de exemplo** e concluam o cadastro. Entrem com a mesma conta. O CPF precisa ter dígitos verificadores válidos e o sistema não aceita CPF ou e-mail duplicado. Se já testaram com essa conta, basta fazer login.
+1. Em **Criar conta**, preencham o cadastro com dados de teste e renda mensal de R$ 15.000 para seguir o exemplo abaixo. Entrem com a mesma conta. O CPF precisa ter dígitos verificadores válidos e o sistema não aceita CPF ou e-mail duplicado. Se já testaram com essa conta, basta fazer login.
 2. Cadastrem um bem de **R$ 12.500,00**. Na simulação, usem **R$ 2.500,00 de entrada**, **12 meses** e **1% ao mês**.
 3. Cliquem em **Calcular financiamento**. O esperado é **R$ 10.000,00 financiados**, 11 parcelas de **R$ 888,49** e a última de **R$ 888,47**. Os juros somam **R$ 661,86**, e o total **com a entrada** é **R$ 13.161,86**.
-4. Enviem a proposta com a conta de exemplo (renda de R$ 15.000,00). Ela deve ser aprovada. Para mostrar uma reprovação, mantenham os dados do bem e façam outra simulação com **entrada zero**: o percentual financiado passa para 100%, acima do limite de 90%.
+4. Enviem a proposta com a conta de exemplo (renda de R$ 15.000,00). Ela deve ser aprovada. Em **Meus Financiamentos → Detalhes e Contrato**, confira as 12 parcelas pendentes. Para mostrar uma reprovação, mantenham os dados do bem e façam outra simulação com **entrada zero**: o percentual financiado passa para 100%, acima do limite de 90%.
 5. Saiam e entrem novamente. As duas propostas devem continuar no acompanhamento, cada uma com seu protocolo. Outra conta deve ter seu próprio histórico.
 
 **Como explicar o resultado:** a parcela é calculada no Java pela Tabela Price. A taxa da tela é mensal e a última parcela pode variar alguns centavos para zerar o saldo. A análise exige renda **maior que** três vezes a maior parcela, percentual financiado **até 90%** e score **a partir de 600**. Nesta versão, o backend atribui score demonstrativo de 700 a novos clientes; não consultamos um serviço externo. A regra implementada aceita **18 anos completos**. Precisamos alinhar esse limite com o enunciado original, que diz “mais de 18”.
@@ -102,6 +102,6 @@ No GitHub, abram o **Pull Request** para a `main` e descrevam o que mudou e como
 | Conexão recusada na porta 5432 | Verifiquem se o PostgreSQL está iniciado e se a porta coincide com a de `DB_URL`. |
 | Permissão negada ao criar tabelas | No pgAdmin, confiram se `bradesco_app` é o proprietário do banco. |
 | A tela abre, mas cadastro/login falha por conexão | Confiram no IntelliJ se o backend terminou de iniciar na porta 8080. |
-| CPF inválido ou já cadastrado | Para um primeiro teste, usem o preenchimento de exemplo. Se o cadastro já existe, entrem pela aba de login. |
+| CPF inválido ou já cadastrado | Confiram os dígitos do CPF informado. Se o cadastro já existe, entrem pela aba de login. |
 
 Se precisarem de ajuda no grupo, mandem a etapa em que parou e a primeira mensagem de erro do console. Isso ajuda a identificar se o problema está no banco, no Java ou no front.

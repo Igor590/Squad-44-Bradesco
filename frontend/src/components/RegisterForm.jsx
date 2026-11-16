@@ -11,7 +11,7 @@ import {
   Check,
   X,
   ArrowRight,
-  Sparkles,
+  CircleX,
   ShieldCheck,
 } from "lucide-react";
 
@@ -93,24 +93,6 @@ export function RegisterForm({ onSuccessRegister }) {
     return { label: "Forte e Segura", color: "#10B981" };
   }, [passwordScore]);
 
-  // Preenchimento de exemplo para teste rápido
-  const handleAutoFill = () => {
-    const sampleData = {
-      nascimento: "1995-05-20",
-      renda: "15000",
-      fullName: "Mariana Duarte Souza",
-      cpf: "529.982.247-25",
-      email: "mariana.duarte@email.com.br",
-      phone: "(11) 98765-4321",
-      password: "Bradesco#2026",
-      confirmPassword: "Bradesco#2026",
-      agreeTerms: true,
-      receiveOffers: true,
-    };
-    setFormData(sampleData);
-    setErrors({});
-  };
-
   const validate = () => {
     const newErrors = {};
     if (
@@ -150,8 +132,11 @@ export function RegisterForm({ onSuccessRegister }) {
       newErrors.nascimento = "Informe uma data de nascimento passada.";
     if (formData.renda === "" || Number(formData.renda) < 0)
       newErrors.renda = "Informe uma renda válida.";
+    if (Object.keys(newErrors).length) {
+      newErrors.general = "Confira os campos indicados no formulário.";
+    }
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return !newErrors.general;
   };
 
   const handleSubmit = async (e) => {
@@ -178,8 +163,12 @@ export function RegisterForm({ onSuccessRegister }) {
       noValidate
     >
       {errors.general && (
-        <div className="auth-alert error" role="alert">
-          {errors.general}
+        <div className="auth-alert registration-alert error" role="alert">
+          <CircleX size={18} aria-hidden="true" />
+          <div>
+            <strong>Não foi possível realizar o cadastro!</strong>
+            <div>{errors.general}</div>
+          </div>
         </div>
       )}
       <div className="form-row-account">
@@ -218,20 +207,19 @@ export function RegisterForm({ onSuccessRegister }) {
           )}
         </div>
       </div>
-      <p className="form-security-footer">
-        Demonstração acadêmica: score de teste definido pelo servidor, sem
-        consulta a birôs de crédito.
-      </p>
-      {/* Botão de Preenchimento Rápido de Teste */}
-      <div className="demo-helper-box mb-3">
-        <button
-          type="button"
-          className="demo-autofill-btn"
-          onClick={handleAutoFill}
-        >
-          <Sparkles size={13} />
-          <span>Preencher dados de exemplo</span>
-        </button>
+      <div className="form-group">
+        <label className="form-label" htmlFor="reg-score">Score</label>
+        <input
+          id="reg-score"
+          className="form-input"
+          type="number"
+          value={700}
+          readOnly
+          aria-describedby="reg-score-help"
+        />
+        <p id="reg-score-help" className="form-security-footer">
+          Score demonstrativo padrão. O servidor define o valor usado na análise.
+        </p>
       </div>
 
       {/* Nome Completo */}

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.*;
+import java.time.LocalDate;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -56,6 +57,7 @@ class FluxoIntegradoTest {
   @Test
   void fluxoPersistenciaIsolamentoValidacoes() throws Exception {
     mvc.perform(get("/api/bens")).andExpect(status().isUnauthorized());
+    mvc.perform(get("/api/financiamentos")).andExpect(status().isUnauthorized());
     mvc.perform(
             post("/api/auth/cadastro")
                 .contentType("application/json")
@@ -103,15 +105,51 @@ class FluxoIntegradoTest {
                 200));
     assertEquals("REPROVADO", denied.get("status").asText());
     assertTrue(denied.get("motivosReprovacao").toString().contains("90%"));
+    var contratos = body(mvc.perform(get("/api/financiamentos").session(session))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].status").value("ATIVO"))
+        .andExpect(jsonPath("$[0].clienteNome").value("Pessoa Teste"))
+        .andReturn());
+    var contrato = contratos.get(0);
+    assertEquals(approved.get("idProposta"), contrato.get("propostaId"));
+    String financiamento = "/api/financiamentos/" + contrato.get("id").asText();
+    var detalhes = body(mvc.perform(get(financiamento).session(session))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.parcelas.length()").value(12))
+        .andReturn());
+    LocalDate contratadoEm = LocalDate.parse(contrato.get("contratadoEm").asText());
+    for (int i = 0; i < 12; i++) {
+      var parcela = detalhes.get("parcelas").get(i);
+      assertEquals(i + 1, parcela.get("numero").asInt());
+      assertEquals("PENDENTE", parcela.get("status").asText());
+      assertEquals(contratadoEm.plusMonths(i + 1).toString(), parcela.get("vencimento").asText());
+      assertEquals(s.at("/resultado/parcelas/" + i + "/valor").decimalValue(),
+          parcela.get("valor").decimalValue());
+    }
+    mvc.perform(put("/api/bens/" + b.get("id").asText()).with(csrf()).session(session)
+            .contentType("application/json")
+            .content("""
+                {"descricao":"Descrição atualizada","condicaoBem":"novo","valorNumerico":20000}
+                """))
+        .andExpect(status().isOk());
+
     send("/api/auth/cadastro", cadastro("11144477735", "bia@example.com", "100"), null, 201);
     var other = login("11144477735");
     mvc.perform(get("/api/bens").session(other)).andExpect(content().json("[]"));
     mvc.perform(get("/api/propostas").session(other)).andExpect(content().json("[]"));
+    mvc.perform(get("/api/financiamentos").session(other)).andExpect(content().json("[]"));
+    mvc.perform(get(financiamento).session(other)).andExpect(status().isNotFound());
     send("/api/simulacoes", request, other, 404);
     send("/api/propostas", proposta, other, 404);
     send("/api/auth/logout", "{}", session, 204);
     var again = login("52998224725");
     mvc.perform(get("/api/propostas").session(again)).andExpect(jsonPath("$.length()").value(2));
+    mvc.perform(get(financiamento).session(again))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.contrato.bemDescricao").value("Carro teste"))
+        .andExpect(jsonPath("$.contrato.valorBem").value(12500))
+        .andExpect(jsonPath("$.parcelas[11].valor").value(888.47));
   }
 
   @Test

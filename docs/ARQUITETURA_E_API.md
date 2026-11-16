@@ -13,7 +13,7 @@ O cálculo não depende de HTTP: `SimuladorFinanciamento`, `ResultadoSimulacao`,
 - **simulacoes**: UUID PK, cliente_id/bem_id FKs, instante, resultado imutável em JSON textual.
 - **propostas**: UUID PK, cliente_id/simulacao_id FKs, simulacao_id único, instante, status, motivos e cópia de idade/renda/score usados na análise.
 
-O cronograma fica no snapshot da simulação; não é uma tabela de parcelas contratadas. As tabelas de contratos/pagamentos do modelo completo ainda não foram implementadas. JSON textual foi escolhido para preservar os valores exatos da simulação sem depender de tipos específicos do banco nos testes.
+A V2 registra a contratação em `financiamentos` e gera `parcelas_financiamento` com os valores do cronograma aprovado. O primeiro vencimento é no mês seguinte, mantendo o dia da contratação ou usando o último dia do mês quando necessário. A geração vale para novas aprovações. O registro de pagamentos ainda está pendente. JSON textual foi escolhido para preservar os valores exatos da simulação sem depender de tipos específicos do banco nos testes.
 
 Relacionamentos são verificados por FKs no banco. A propriedade de cada recurso é verificada no serviço com o ID do usuário autenticado. A aplicação não recebe clienteId do navegador para decidir o dono. Não existem endpoints de alteração de bens/clientes nesta versão.
 
@@ -31,6 +31,8 @@ Relacionamentos são verificados por FKs no banco. A propriedade de cada recurso
 | POST | /api/simulacoes | Calcular e persistir simulação (201) |
 | POST | /api/propostas | Converter simulação em proposta e analisar (200) |
 | GET | /api/propostas | Listar propostas do usuário |
+| GET | /api/financiamentos | Listar contratos e financiamentos do usuário |
+| GET | /api/financiamentos/{id} | Obter o contrato e as parcelas do financiamento |
 
 Todos os POST exigem token CSRF, inclusive cadastro/login. Primeiro obtenha `/api/auth/csrf`, preserve o cookie e envie o header indicado na resposta. O login renova a sessão, portanto obtenha novo CSRF para ações posteriores. O frontend faz isso automaticamente. Sessão dura 30 minutos de inatividade, com cookie HttpOnly/SameSite=Lax, sem guardar senha ou autenticação em localStorage. Sem CORS aberto: durante desenvolvimento o proxy mantém a mesma origem.
 

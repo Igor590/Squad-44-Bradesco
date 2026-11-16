@@ -7,7 +7,6 @@ import {
   DollarSign,
   FileText,
   ArrowRight,
-  Sparkles,
   ShieldCheck,
   Check,
   Award,
@@ -35,15 +34,6 @@ export function BensForm({ onSuccessCadastroBem }) {
         currency: "BRL",
       }),
     );
-    setError("");
-  };
-
-  const handleAutoFill = () => {
-    setTipoBem("veiculo");
-    setDescricao("Toyota Corolla Sedan 2.0 Flex 2024");
-    setIdentificacao("ABC-1D23");
-    setValorBem("R$ 120.000,00");
-    setCondicaoBem("seminovo");
     setError("");
   };
 
@@ -119,17 +109,6 @@ export function BensForm({ onSuccessCadastroBem }) {
           </p>
         </div>
 
-        <div className="bens-header-actions">
-          <button
-            type="button"
-            className="demo-autofill-btn"
-            onClick={handleAutoFill}
-            title="Preencher com dados de exemplo de veículo"
-          >
-            <Sparkles size={14} />
-            <span>Preencher bem de exemplo</span>
-          </button>
-        </div>
       </div>
 
       {error && (
