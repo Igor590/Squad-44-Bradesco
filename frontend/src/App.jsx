@@ -141,7 +141,7 @@ export function App() {
   if (initializing)
     return (
       <main className="auth-card-box">
-        <p>Conectando ao sistema...</p>
+        <p>Conectando ao sistema....</p>
       </main>
     );
 
