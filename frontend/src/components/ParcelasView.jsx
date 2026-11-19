@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Calendar,
   CheckCircle2,
@@ -11,21 +12,24 @@ import {
 import { brl } from "../api";
 
 export default function ParcelasView({
+  contratoAtivo,
   parcelas = [],
   onRegistrarPagamento,
 }) {
   const [parcelaParaPagar, setParcelaParaPagar] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState("PIX");
-  const [dataPagamento, setDataPagamento] = useState(
-    () => new Date().toISOString().split("T")[0]
+  const [dataPagamento] = useState(
+    () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Recife" })
   );
   const [observacao, setObservacao] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("TODAS");
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState("");
   const [avisoSucesso, setAvisoSucesso] = useState("");
 
   const parcelasFiltradas = parcelas.filter((p) => {
     if (filtroStatus === "TODAS") return true;
-    return p.status === filtroStatus;
+    return filtroStatus === "ABERTA" ? p.status === "PENDENTE" : p.status === filtroStatus;
   });
 
   const totalPago = parcelas
@@ -34,32 +38,38 @@ export default function ParcelasView({
 
   const totalEmAberto = parcelas
     .filter((p) => p.status !== "PAGA")
-    .reduce((acc, p) => acc + p.valorOriginal + (p.encargosAtraso || 0), 0);
+    .reduce((acc, p) => acc + p.totalAtualizado, 0);
 
-  const handleConfirmarPagamento = (e) => {
+  const handleConfirmarPagamento = async (e) => {
     e.preventDefault();
-    if (!parcelaParaPagar) return;
+    if (!parcelaParaPagar || busy) return;
+    setBusy(true);
+    setErro("");
 
     const valorFinal =
-      parcelaParaPagar.valorOriginal + (parcelaParaPagar.encargosAtraso || 0);
+      parcelaParaPagar.totalAtualizado;
 
-    onRegistrarPagamento({
-      parcelaId: parcelaParaPagar.id,
-      numeroParcela: parcelaParaPagar.numero,
-      contratoId: "CTR-2026-00841",
-      bemDescricao: "Honda Civic 2.0 Flex 2023",
-      valorPago: valorFinal,
-      formaPagamento,
-      dataPagamento,
-      observacao,
-    });
+    try {
+      await onRegistrarPagamento({
+        parcelaId: parcelaParaPagar.id,
+        numeroParcela: parcelaParaPagar.numero,
+        valorPago: valorFinal,
+        formaPagamento,
+        dataPagamento,
+        observacao,
+      });
 
-    setAvisoSucesso(
-      `Pagamento da Parcela ${parcelaParaPagar.numero}/${parcelas.length} (${brl(valorFinal)}) simulado com sucesso!`
-    );
-    setParcelaParaPagar(null);
-    setObservacao("");
-    setTimeout(() => setAvisoSucesso(""), 5000);
+      setAvisoSucesso(
+        `Pagamento da Parcela ${parcelaParaPagar.numero}/${parcelas.length} (${brl(valorFinal)}) registrado com sucesso!`
+      );
+      setParcelaParaPagar(null);
+      setObservacao("");
+      setTimeout(() => setAvisoSucesso(""), 5000);
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const renderBadgeStatus = (status) => {
@@ -128,7 +138,7 @@ export default function ParcelasView({
         </h2>
         <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
           Contrato{" "}
-          <strong>CTR-2026-00841</strong> — Honda Civic 2.0 Flex 2023
+          <strong>{contratoAtivo?.id}</strong> — {contratoAtivo?.bemDescricao}
         </p>
       </div>
 
@@ -212,7 +222,7 @@ export default function ParcelasView({
           { id: "TODAS", label: `Todas (${parcelas.length})` },
           {
             id: "ABERTA",
-            label: `Em Aberto (${parcelas.filter((p) => p.status === "ABERTA").length})`,
+            label: `Em Aberto (${parcelas.filter((p) => p.status === "PENDENTE").length})`,
           },
           {
             id: "ATRASADA",
@@ -242,7 +252,7 @@ export default function ParcelasView({
       {/* Lista de Parcelas */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
         {parcelasFiltradas.map((p) => {
-          const valorCobrado = p.valorOriginal + (p.encargosAtraso || 0);
+          const valorCobrado = p.totalAtualizado;
           return (
             <div
               key={p.id}
@@ -313,7 +323,7 @@ export default function ParcelasView({
                       padding: "0.55rem 0.95rem",
                       fontSize: "0.82rem",
                     }}
-                    onClick={() => setParcelaParaPagar(p)}
+                    onClick={() => { setErro(""); setParcelaParaPagar(p); }}
                   >
                     <CreditCard size={14} style={{ marginRight: "0.35rem" }} />
                     Registrar Pagamento
@@ -326,7 +336,7 @@ export default function ParcelasView({
       </div>
 
       {/* Modal / Painel de Registro de Pagamento */}
-      {parcelaParaPagar && (
+      {parcelaParaPagar && createPortal(
         <div
           style={{
             position: "fixed",
@@ -341,7 +351,16 @@ export default function ParcelasView({
         >
           <div
             className="auth-card-box"
-            style={{ maxWidth: "460px", width: "100%", position: "relative" }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pagamento-titulo"
+            style={{
+              maxWidth: "460px",
+              width: "100%",
+              maxHeight: "calc(100dvh - 2rem)",
+              overflowY: "auto",
+              position: "relative",
+            }}
           >
             <div
               style={{
@@ -353,14 +372,14 @@ export default function ParcelasView({
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <Receipt size={18} style={{ color: "var(--bradesco-red)" }} />
-                <h3 style={{ fontSize: "1.1rem", margin: 0 }}>
+                <h3 id="pagamento-titulo" style={{ fontSize: "1.1rem", margin: 0 }}>
                   Registrar Pagamento — Parcela{" "}
                   {String(parcelaParaPagar.numero).padStart(2, "0")}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setParcelaParaPagar(null)}
+                disabled={busy} onClick={() => setParcelaParaPagar(null)}
                 className="text-link-btn"
                 aria-label="Fechar"
               >
@@ -369,6 +388,8 @@ export default function ParcelasView({
             </div>
 
             <form onSubmit={handleConfirmarPagamento} className="auth-form">
+              {erro && <p className="auth-alert error" role="alert">{erro}</p>}
+              <p>Registro acadêmico do pagamento integral da parcela. A data é a de hoje.</p>
               <div
                 style={{
                   padding: "0.85rem",
@@ -402,8 +423,7 @@ export default function ParcelasView({
                 >
                   <strong>Total a Pagar:</strong>{" "}
                   {brl(
-                    parcelaParaPagar.valorOriginal +
-                      (parcelaParaPagar.encargosAtraso || 0)
+                    parcelaParaPagar.totalAtualizado
                   )}
                 </div>
               </div>
@@ -422,8 +442,8 @@ export default function ParcelasView({
                   <option value="Débito em Conta Bradesco">
                     Débito em Conta Bradesco
                   </option>
-                  <option value="Boleto Bancário">Boleto Bancário</option>
-                  <option value="TED / Transferência">TED / Transferência</option>
+                  <option value="Boleto">Boleto Bancário</option>
+                  <option value="Transferência">TED / Transferência</option>
                 </select>
               </div>
 
@@ -436,7 +456,7 @@ export default function ParcelasView({
                   type="date"
                   className="form-input"
                   value={dataPagamento}
-                  onChange={(e) => setDataPagamento(e.target.value)}
+                  readOnly
                   required
                 />
               </div>
@@ -447,6 +467,7 @@ export default function ParcelasView({
                 </label>
                 <input
                   id="obs-pagamento"
+                  maxLength={500}
                   type="text"
                   className="form-input"
                   placeholder="Ex: Comprovante via app Bradesco"
@@ -460,21 +481,22 @@ export default function ParcelasView({
                   type="button"
                   className="tab-nav-btn"
                   style={{ flex: 1, border: "1px solid var(--card-border)" }}
-                  onClick={() => setParcelaParaPagar(null)}
+                  disabled={busy} onClick={() => setParcelaParaPagar(null)}
                 >
                   Cancelar
                 </button>
                 <button
-                  type="submit"
+                  type="submit" disabled={busy}
                   className="btn-primary-bradesco"
                   style={{ flex: 2 }}
                 >
-                  Simular Pagamento
+                  {busy ? "Registrando…" : "Confirmar Pagamento"}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

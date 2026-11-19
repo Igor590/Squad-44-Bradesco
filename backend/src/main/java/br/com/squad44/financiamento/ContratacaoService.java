@@ -20,7 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class ContratacaoService {
   private static final String CONSULTA = """
       SELECT f.id, f.proposta_id, f.contratado_em, f.cliente_nome, f.bem_descricao, f.status,
-             s.resultado_json
+             f.cliente_cpf, f.bem_tipo, f.bem_identificacao, f.identificacao_complementada, s.resultado_json
       FROM financiamentos f
       JOIN propostas p ON p.id = f.proposta_id
       JOIN simulacoes s ON s.id = p.simulacao_id
@@ -39,13 +39,15 @@ public class ContratacaoService {
 
   @Transactional(propagation = Propagation.MANDATORY)
   public void gerar(
-      UUID proposta, LocalDate contratadoEm, String clienteNome, String bemDescricao,
+      UUID proposta, LocalDate contratadoEm, Cliente cliente, Bem bem,
       ResultadoSimulacao simulacao) {
     UUID id = UUID.randomUUID();
     jdbc.update("""
-        INSERT INTO financiamentos (id, proposta_id, contratado_em, cliente_nome, bem_descricao, status)
-        VALUES (?, ?, ?, ?, ?, 'ATIVO')
-        """, id, proposta, contratadoEm, clienteNome, bemDescricao);
+        INSERT INTO financiamentos (id, proposta_id, contratado_em, cliente_nome, bem_descricao, status,
+          cliente_cpf, bem_tipo, bem_identificacao)
+        VALUES (?, ?, ?, ?, ?, 'ATIVO', ?, ?, ?)
+        """, id, proposta, contratadoEm, cliente.nome, bem.descricao,
+        cliente.cpf, bem.tipoBem, bem.identificacao);
     List<Object[]> parcelas = simulacao.parcelas().stream()
         .map(p -> new Object[] {
             id, p.numero(), contratadoEm.plusMonths(p.numero()),
@@ -76,12 +78,30 @@ public class ContratacaoService {
         .optional()
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Financiamento não encontrado."));
     List<Parcela> parcelas = consultas.sql("""
-        SELECT numero, vencimento, valor, juros, amortizacao, status
-        FROM parcelas_financiamento
-        WHERE financiamento_id = :id
-        ORDER BY numero
-        """).param("id", id).query(Parcela.class).list();
-    return new Detalhes(contrato, parcelas);
+        SELECT q.numero, q.vencimento, q.valor, q.juros, q.amortizacao, q.status,
+          g.data_pagamento, g.valor_pago, g.forma_pagamento, g.multa AS multa_paga, g.juros_mora AS mora_paga
+        FROM parcelas_financiamento q LEFT JOIN pagamentos g
+          ON g.financiamento_id = q.financiamento_id AND g.numero_parcela = q.numero
+        WHERE q.financiamento_id = :id ORDER BY q.numero
+        """).param("id", id).query((rs, row) -> {
+          LocalDate vencimento = rs.getObject("vencimento", LocalDate.class);
+          LocalDate pagamento = rs.getObject("data_pagamento", LocalDate.class);
+          var encargos = new CalculadoraInadimplencia().calcular(rs.getBigDecimal("valor"),
+              vencimento, pagamento == null ? PagamentoService.hoje() : pagamento);
+          String status = pagamento != null ? "PAGA" : encargos.diasEmAtraso() > 0 ? "ATRASADA" : "PENDENTE";
+          return new Parcela(rs.getInt("numero"), vencimento, rs.getBigDecimal("valor"),
+              rs.getBigDecimal("juros"), rs.getBigDecimal("amortizacao"), status,
+              encargos.diasEmAtraso(),
+              pagamento == null ? encargos.multa() : rs.getBigDecimal("multa_paga"),
+              pagamento == null ? encargos.juros() : rs.getBigDecimal("mora_paga"),
+              pagamento == null ? encargos.total() : rs.getBigDecimal("valor_pago"),
+              pagamento, rs.getBigDecimal("valor_pago"), rs.getString("forma_pagamento"));
+        }).list();
+    BigDecimal principal = parcelas.stream().filter(p -> !p.status().equals("PAGA"))
+        .map(Parcela::amortizacao).reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal emAberto = parcelas.stream().filter(p -> !p.status().equals("PAGA"))
+        .map(Parcela::totalAtualizado).reduce(BigDecimal.ZERO, BigDecimal::add);
+    return new Detalhes(contrato, parcelas, principal, emAberto);
   }
 
   private Contrato lerContrato(ResultSet rs, int linha) throws SQLException {
@@ -94,6 +114,8 @@ public class ContratacaoService {
           rs.getString("cliente_nome"),
           rs.getString("bem_descricao"),
           rs.getString("status"),
+          rs.getString("cliente_cpf"), rs.getString("bem_tipo"), rs.getString("bem_identificacao"),
+          rs.getBoolean("identificacao_complementada"),
           r.valorBem(), r.entrada(), r.valorFinanciado(), r.prazoMeses(), r.taxaMensalPercentual(),
           r.parcelaPadrao(), r.totalParcelas(), r.totalPago());
     } catch (JsonProcessingException e) {
@@ -103,13 +125,17 @@ public class ContratacaoService {
 
   public record Contrato(
       UUID id, UUID propostaId, LocalDate contratadoEm, String clienteNome, String bemDescricao,
-      String status, BigDecimal valorBem, BigDecimal entrada, BigDecimal valorFinanciado,
+      String status, String clienteCpf, String bemTipo, String bemIdentificacao,
+      boolean identificacaoComplementada, BigDecimal valorBem, BigDecimal entrada, BigDecimal valorFinanciado,
       int prazoMeses, BigDecimal taxaMensalPercentual, BigDecimal parcelaPadrao,
       BigDecimal totalParcelas, BigDecimal totalComEntrada) {}
 
   public record Parcela(
       int numero, LocalDate vencimento, BigDecimal valor, BigDecimal juros,
-      BigDecimal amortizacao, String status) {}
+      BigDecimal amortizacao, String status, long diasEmAtraso, BigDecimal multa,
+      BigDecimal jurosMora, BigDecimal totalAtualizado, LocalDate dataPagamento,
+      BigDecimal valorTotalPago, String formaPagamento) {}
 
-  public record Detalhes(Contrato contrato, List<Parcela> parcelas) {}
+  public record Detalhes(
+      Contrato contrato, List<Parcela> parcelas, BigDecimal saldoPrincipal, BigDecimal totalEmAberto) {}
 }

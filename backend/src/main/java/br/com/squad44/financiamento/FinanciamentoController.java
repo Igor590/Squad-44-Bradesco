@@ -12,10 +12,12 @@ public class FinanciamentoController {
   private final FinanciamentoService service;
 
   private final ContratacaoService contratacao;
+  private final PagamentoService pagamentos;
 
-  public FinanciamentoController(FinanciamentoService s, ContratacaoService contratacao) {
+  public FinanciamentoController(FinanciamentoService s, ContratacaoService contratacao, PagamentoService pagamentos) {
     service = s;
     this.contratacao = contratacao;
+    this.pagamentos = pagamentos;
   }
 
   private UUID id(Authentication a) {
@@ -59,5 +61,17 @@ public class FinanciamentoController {
   @GetMapping("/financiamentos/{id}")
   public ContratacaoService.Detalhes financiamento(Authentication a, @PathVariable UUID id) {
     return contratacao.detalhar(id(a), id);
+  }
+
+  @GetMapping("/pagamentos")
+  public List<PagamentoService.Pagamento> historico(Authentication a) {
+    return pagamentos.historico(id(a));
+  }
+
+  @PostMapping("/financiamentos/{id}/parcelas/{numero}/pagamento")
+  public PagamentoService.Pagamento pagar(
+      Authentication a, @PathVariable UUID id, @PathVariable int numero,
+      @Valid @RequestBody PagamentoService.Pedido pedido) {
+    return pagamentos.registrar(id(a), id, numero, pedido);
   }
 }

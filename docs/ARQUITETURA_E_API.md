@@ -13,7 +13,7 @@ O cálculo não depende de HTTP: `SimuladorFinanciamento`, `ResultadoSimulacao`,
 - **simulacoes**: UUID PK, cliente_id/bem_id FKs, instante, resultado imutável em JSON textual.
 - **propostas**: UUID PK, cliente_id/simulacao_id FKs, simulacao_id único, instante, status, motivos e cópia de idade/renda/score usados na análise.
 
-A V2 registra a contratação em `financiamentos` e gera `parcelas_financiamento` com os valores do cronograma aprovado. O primeiro vencimento é no mês seguinte, mantendo o dia da contratação ou usando o último dia do mês quando necessário. A geração vale para novas aprovações. O registro de pagamentos ainda está pendente. JSON textual foi escolhido para preservar os valores exatos da simulação sem depender de tipos específicos do banco nos testes.
+A V2 registra a contratação em `financiamentos` e gera `parcelas_financiamento` com os valores do cronograma aprovado. O primeiro vencimento é no mês seguinte, mantendo o dia da contratação ou usando o último dia do mês quando necessário. A geração vale para novas aprovações. A V3 registra pagamentos integrais com valor original, multa e juros de mora separados. A consulta calcula o atraso das parcelas em aberto e preserva os encargos das parcelas pagas. A multa de 2% inicia no segundo dia de atraso. Os juros são de 0,033% ao dia sobre o valor original. JSON textual foi escolhido para preservar os valores exatos da simulação sem depender de tipos específicos do banco nos testes.
 
 Relacionamentos são verificados por FKs no banco. A propriedade de cada recurso é verificada no serviço com o ID do usuário autenticado. A aplicação não recebe clienteId do navegador para decidir o dono. Não existem endpoints de alteração de bens/clientes nesta versão.
 
@@ -32,7 +32,9 @@ Relacionamentos são verificados por FKs no banco. A propriedade de cada recurso
 | POST | /api/propostas | Converter simulação em proposta e analisar (200) |
 | GET | /api/propostas | Listar propostas do usuário |
 | GET | /api/financiamentos | Listar contratos e financiamentos do usuário |
-| GET | /api/financiamentos/{id} | Obter o contrato e as parcelas do financiamento |
+| GET | /api/financiamentos/{id} | Obter contrato, parcelas, saldo principal e total em aberto com encargos |
+| GET | /api/pagamentos | Histórico dos pagamentos do cliente |
+| POST | /api/financiamentos/{id}/parcelas/{numero}/pagamento | Registrar pagamento integral da parcela |
 
 Todos os POST exigem token CSRF, inclusive cadastro/login. Primeiro obtenha `/api/auth/csrf`, preserve o cookie e envie o header indicado na resposta. O login renova a sessão, portanto obtenha novo CSRF para ações posteriores. O frontend faz isso automaticamente. Sessão dura 30 minutos de inatividade, com cookie HttpOnly/SameSite=Lax, sem guardar senha ou autenticação em localStorage. Sem CORS aberto: durante desenvolvimento o proxy mantém a mesma origem.
 
@@ -83,3 +85,23 @@ mvnw.cmd test
 ```
 
 Os testes usam H2 isolado em modo PostgreSQL; não conectam ao banco real. O H2 é dependência somente de teste e não substitui PostgreSQL na execução normal. Não ative perfil `test` para a apresentação.
+
+
+## Registro de pagamentos
+
+O formulário registra pagamento integral na data de hoje. A API aceita uma data entre a contratação e hoje, para registro de um pagamento já realizado. O backend calcula o valor devido naquela data e exige que `valorPago` coincida. Um valor divergente retorna 409. Valores parciais são rejeitados.
+
+O pagamento antecipado de uma parcela usa seu valor contratado, sem desconto adicional. Essa decisão acadêmica precisa ser alinhada ao escopo do squad.
+
+O payload contém `dataPagamento` (AAAA-MM-DD), `valorPago`, `formaPagamento` e `observacao` opcional. Formas aceitas são PIX, Débito em Conta Bradesco, Boleto e Transferência. A forma registra a informação fornecida pelo cliente. O sistema não processa transferências.
+
+O financiamento é bloqueado durante o registro. Reenvios da mesma parcela retornam o registro já salvo. Pagamento, situação da parcela e quitação são atualizados na mesma transação. A quitação acontece quando todas as parcelas estão pagas.
+
+`saldoPrincipal` soma as amortizações em aberto. `totalEmAberto` soma os valores das parcelas em aberto com encargos calculados na data da consulta. O histórico usa os valores gravados na data de cada pagamento.
+
+## Contrato PDF
+
+O frontend gera PDF A4 dos dados retornados pela API com jsPDF e tabelas paginadas. O documento contém identificação, condições financeiras, regras acadêmicas e cronograma completo. O download é feito localmente no navegador, sob demanda.
+
+
+A V4 preserva CPF do cliente, tipo e identificação do bem no registro da contratação. Para contratos anteriores à V4, esses campos são complementados uma vez com os cadastros disponíveis na atualização e o PDF informa essa origem. Nas novas contratações, todos esses dados são copiados na mesma transação da geração das parcelas.
