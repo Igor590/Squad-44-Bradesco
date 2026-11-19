@@ -6,7 +6,7 @@ Pessoal, deixei aqui o que precisamos para rodar e testar nossa versão integrad
 
 O cliente cria uma conta, entra com CPF ou e-mail, cadastra um bem e simula o financiamento. Antes de enviar a proposta, ele já consegue ver a parcela, os juros, o total com entrada e o cronograma. Ao enviar, recebe um protocolo e a decisão da análise. Se houver reprovação, o sistema mostra os motivos. Cada cliente só consegue consultar os próprios bens e propostas.
 
-Uma nova proposta aprovada gera um contrato, um financiamento ativo e parcelas pendentes no PostgreSQL. Em **Meus Financiamentos**, o cliente pode consultar o contrato e seus vencimentos. As abas **Parcelas e Pagamentos** e **Histórico** ainda mostram dados demonstrativos. Pagamentos persistidos, quitação e encargos de atraso nas parcelas reais ficam para as próximas etapas.
+Uma nova proposta aprovada gera um contrato, um financiamento ativo e parcelas pendentes no PostgreSQL. Em **Meus Financiamentos**, o cliente pode consultar o contrato e seus vencimentos. Em **Parcelas e Pagamentos**, selecione o financiamento e registre o pagamento integral da parcela na data de hoje. O servidor calcula multa e juros, atualiza o saldo e marca o financiamento como quitado após a última parcela. O **Histórico** consulta os pagamentos gravados e permite buscar registros e baixar comprovantes. O contrato pode ser baixado em PDF com condições e cronograma.
 
 | Onde mexer | O que tem ali |
 |---|---|
@@ -67,7 +67,8 @@ Com o PostgreSQL ligado, executem `FinanciamentosApplication` no IntelliJ e rode
 2. Cadastrem um bem de **R$ 12.500,00**. Na simulação, usem **R$ 2.500,00 de entrada**, **12 meses** e **1% ao mês**.
 3. Cliquem em **Calcular financiamento**. O esperado é **R$ 10.000,00 financiados**, 11 parcelas de **R$ 888,49** e a última de **R$ 888,47**. Os juros somam **R$ 661,86**, e o total **com a entrada** é **R$ 13.161,86**.
 4. Enviem a proposta com a conta de exemplo (renda de R$ 15.000,00). Ela deve ser aprovada. Em **Meus Financiamentos → Detalhes e Contrato**, confira as 12 parcelas pendentes. Para mostrar uma reprovação, mantenham os dados do bem e façam outra simulação com **entrada zero**: o percentual financiado passa para 100%, acima do limite de 90%.
-5. Saiam e entrem novamente. As duas propostas devem continuar no acompanhamento, cada uma com seu protocolo. Outra conta deve ter seu próprio histórico.
+5. Em **Meus Financiamentos**, abram o contrato, baixem o PDF e usem **Consultar parcelas e registrar pagamento**. Registrem uma parcela e confiram o **Histórico**. Recarreguem a página e verifiquem se o registro continua disponível. O saldo principal restante deve diminuir pela amortização da parcela paga.
+6. Saiam e entrem novamente. As duas propostas devem continuar no acompanhamento, cada uma com seu protocolo. Outra conta deve ter seu próprio histórico.
 
 **Como explicar o resultado:** a parcela é calculada no Java pela Tabela Price. A taxa da tela é mensal e a última parcela pode variar alguns centavos para zerar o saldo. A análise exige renda **maior que** três vezes a maior parcela, percentual financiado **até 90%** e score **a partir de 600**. Nesta versão, o backend atribui score demonstrativo de 700 a novos clientes; não consultamos um serviço externo. A regra implementada aceita **18 anos completos**. Precisamos alinhar esse limite com o enunciado original, que diz “mais de 18”.
 

@@ -97,7 +97,7 @@ public class FinanciamentoService {
     propostas.save(p);
     if (analise.aprovaStatus()) {
       Bem bem = bens.findById(s.bemId).orElseThrow();
-      contratacao.gerar(p.id, dataSolicitacao, c.nome, bem.descricao, r);
+      contratacao.gerar(p.id, dataSolicitacao, c, bem, r);
     }
     return view(p);
   }
