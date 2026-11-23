@@ -8,9 +8,9 @@ import {
   Calendar,
   Percent,
   Wallet,
-  ShieldCheck,
   Building2,
 } from "lucide-react";
+import VisualizadorPdf from "./VisualizadorPdf";
 import { api, brl } from "../api";
 
 function formatarData(data) {
@@ -31,10 +31,11 @@ function dadosDoContrato(contrato) {
   };
 }
 
-export default function MeusFinanciamentosView() {
+export default function MeusFinanciamentosView({ onIrParaParcelas }) {
   const [itens, setItens] = useState([]);
   const [contratoSelecionado, setContratoSelecionado] = useState(null);
-  const [exibirTermoContrato, setExibirTermoContrato] = useState(false);
+  const [previaPdf, setPreviaPdf] = useState(null);
+  const [abrindoPdf, setAbrindoPdf] = useState(false);
   const [mensagemDownload, setMensagemDownload] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -52,10 +53,10 @@ export default function MeusFinanciamentosView() {
     setCarregando(true);
     setErro("");
     try {
-      const { contrato, parcelas } = await api(`/financiamentos/${item.idContrato}`);
+      const { contrato, parcelas, saldoPrincipal, totalEmAberto } = await api(`/financiamentos/${item.idContrato}`);
       setContratoSelecionado({
         ...dadosDoContrato(contrato),
-        parcelas,
+        parcelas, saldoPrincipal, totalEmAberto,
         parcelasPagas: parcelas.filter((p) => p.status === "PAGA").length,
         primeiraParcela: parcelas[0],
         ultimaParcela: parcelas.at(-1)?.valor,
@@ -67,41 +68,29 @@ export default function MeusFinanciamentosView() {
     }
   }
 
-  const handleBaixarContrato = (contrato) => {
-    const textoContrato = [
-      "CONTRATO DE FINANCIAMENTO — PROJETO ACADÊMICO SQUAD 44",
-      `Número do Contrato: ${contrato.idContrato}`,
-      `Protocolo de Origem: ${contrato.protocolo}`,
-      `Cliente: ${contrato.clienteNome}`,
-      "------------------------------------------------------------",
-      `Bem Objeto de Garantia: ${contrato.bemDescricao}`,
-      `Valor do Bem: ${brl(contrato.valorBem)}`,
-      `Valor de Entrada: ${brl(contrato.valorEntrada)}`,
-      `Valor Financiado: ${brl(contrato.valorFinanciado)}`,
-      `Prazo: ${contrato.prazoMeses} meses | Parcela padrão: ${brl(contrato.valorParcela)}`,
-      contrato.ultimaParcela == null ? "" : `Última parcela: ${brl(contrato.ultimaParcela)}`,
-      `Taxa de Juros: ${contrato.taxaMensal}% a.m. (Sistema Tabela Price)`,
-      `Valor Total da Operação: ${brl(contrato.totalPagar)}`,
-      `Data de referência: ${contrato.dataReferencia}`,
-      "------------------------------------------------------------",
-      "Documento gerado eletronicamente - Squad 44 Residência GrowUp.",
-    ].filter(Boolean).join("\n");
-
-    const blob = new Blob([textoContrato], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${contrato.idContrato}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    setMensagemDownload(
-      `Via do contrato ${contrato.idContrato} baixada com sucesso!`
-    );
-    setTimeout(() => setMensagemDownload(""), 4000);
+  const handleBaixarContrato = async (contrato) => {
+    setErro("");
+    try {
+      const { gerarContratoPdf } = await import("../pdf/contrato");
+      gerarContratoPdf(contrato).save(`Contrato-${contrato.idContrato}.pdf`);
+      setMensagemDownload("Contrato em PDF baixado com sucesso!");
+    } catch {
+      setErro("Não foi possível gerar o PDF. Tente novamente.");
+    }
   };
+
+  async function visualizarContrato() {
+    setAbrindoPdf(true);
+    setErro("");
+    try {
+      const { gerarContratoPdf } = await import("../pdf/contrato");
+      setPreviaPdf(gerarContratoPdf(contratoSelecionado).output("blob"));
+    } catch {
+      setErro("Não foi possível abrir o contrato. Tente novamente.");
+    } finally {
+      setAbrindoPdf(false);
+    }
+  }
 
   // MODO 2: DETALHES DO FINANCIAMENTO + VISUALIZAÇÃO DO CONTRATO
   if (contratoSelecionado) {
@@ -112,6 +101,7 @@ export default function MeusFinanciamentosView() {
 
     return (
       <div className="auth-form">
+        {erro && <p className="auth-alert error" role="alert">{erro}</p>}
         <div
           style={{
             display: "flex",
@@ -128,7 +118,7 @@ export default function MeusFinanciamentosView() {
             style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
             onClick={() => {
               setContratoSelecionado(null);
-              setExibirTermoContrato(false);
+              setPreviaPdf(null);
             }}
           >
             <ArrowLeft size={16} />
@@ -254,6 +244,10 @@ export default function MeusFinanciamentosView() {
           <div><strong>Entrada Prevista:</strong> {brl(contratoSelecionado.valorEntrada)}</div>
           <div><strong>Total da Operação:</strong> {brl(contratoSelecionado.totalPagar)}</div>
           <div><strong>Data de Referência:</strong> {contratoSelecionado.dataReferencia}</div>
+          <div><strong>CPF:</strong> {contratoSelecionado.clienteCpf}</div>
+          <div><strong>Tipo do Bem:</strong> {{ veiculo: "Veículo", imovel: "Imóvel", outro: "Outro" }[contratoSelecionado.bemTipo]}</div>
+          <div><strong>Identificação do Bem:</strong> {contratoSelecionado.bemIdentificacao || "Não informada"}</div>
+          <div><strong>Último Vencimento:</strong> {formatarData(contratoSelecionado.parcelas.at(-1)?.vencimento)}</div>
           <div><strong>1º Vencimento:</strong> {formatarData(contratoSelecionado.primeiraParcela?.vencimento)}</div>
         </div>
 
@@ -263,10 +257,11 @@ export default function MeusFinanciamentosView() {
             type="button"
             className="btn-primary-bradesco"
             style={{ width: "auto", padding: "0.75rem 1.25rem" }}
-            onClick={() => setExibirTermoContrato(!exibirTermoContrato)}
+            onClick={visualizarContrato}
+            disabled={abrindoPdf}
           >
             <FileText size={16} style={{ marginRight: "0.4rem" }} />
-            {exibirTermoContrato ? "Ocultar Minuta do Contrato" : "Visualizar Contrato"}
+            {abrindoPdf ? "Abrindo contrato…" : "Visualizar Contrato"}
           </button>
 
           <button
@@ -287,6 +282,15 @@ export default function MeusFinanciamentosView() {
 
         </div>
 
+        <p>Principal restante: <strong>{brl(contratoSelecionado.saldoPrincipal)}</strong>.
+          Total das parcelas em aberto com encargos: <strong>{brl(contratoSelecionado.totalEmAberto)}</strong>.</p>
+        <button type="button" className="btn-primary-bradesco"
+          onClick={async () => {
+            try { await onIrParaParcelas(contratoSelecionado.id); }
+            catch (e) { setErro(e.message); }
+          }}>
+          Consultar parcelas e registrar pagamento
+        </button>
         <div style={{ overflowX: "auto" }}>
           <table className="schedule-table">
             <caption>Parcelas do financiamento</caption>
@@ -306,49 +310,10 @@ export default function MeusFinanciamentosView() {
           </table>
         </div>
 
-        {/* Visualizador Formal do Contrato */}
-        {exibirTermoContrato && (
-          <div
-            style={{
-              padding: "1.25rem",
-              borderRadius: "12px",
-              border: "1px solid var(--card-border)",
-              backgroundColor: "var(--bg-card-secondary)",
-              fontSize: "0.84rem",
-              lineHeight: 1.6,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-              <ShieldCheck size={18} style={{ color: "var(--bradesco-red)" }} />
-              <strong>CONTRATO DE FINANCIAMENTO ACADÊMICO</strong>
-            </div>
-            <p style={{ marginBottom: "0.5rem" }}>
-              <strong>CONTRATO Nº:</strong> {contratoSelecionado.idContrato} |{" "}
-              <strong>DATA:</strong> {contratoSelecionado.dataReferencia}
-            </p>
-            <p style={{ marginBottom: "0.5rem" }}>
-              <strong>1. PARTES:</strong> De um lado, <strong>BANCO BRADESCO S.A.</strong> (Credor), e de outro lado,{" "}
-              <strong>{contratoSelecionado.clienteNome}</strong> (Financiado).
-            </p>
-            <p style={{ marginBottom: "0.5rem" }}>
-              <strong>2. OBJETO E GARANTIA:</strong> Alienação fiduciária do bem{" "}
-              <strong>{contratoSelecionado.bemDescricao}</strong>, avaliado em{" "}
-              {brl(contratoSelecionado.valorBem)}, com entrada de {brl(contratoSelecionado.valorEntrada)}.
-            </p>
-            <p style={{ marginBottom: "0.5rem" }}>
-              <strong>3. CONDIÇÕES FINANCEIRAS:</strong> Valor líquido financiado de{" "}
-              <strong>{brl(contratoSelecionado.valorFinanciado)}</strong>, amortizado pelo Sistema Francês (Tabela Price) em{" "}
-              <strong>{contratoSelecionado.prazoMeses} prestações mensais</strong>, com parcela padrão de{" "}
-              <strong>{brl(contratoSelecionado.valorParcela)}</strong> e juros de{" "}
-              <strong>{contratoSelecionado.taxaMensal}% ao mês</strong>.
-            </p>
-            {contratoSelecionado.ultimaParcela != null && (
-              <p>Última parcela prevista: {brl(contratoSelecionado.ultimaParcela)}.</p>
-            )}
-            <p style={{ opacity: 0.8, fontSize: "0.78rem", marginTop: "0.75rem" }}>
-              Documento acadêmico sem assinatura ou validade contratual.
-            </p>
-          </div>
+        {previaPdf && (
+          <VisualizadorPdf blob={previaPdf}
+            nomeArquivo={`Contrato-${contratoSelecionado.idContrato}.pdf`}
+            onFechar={() => setPreviaPdf(null)} />
         )}
       </div>
     );

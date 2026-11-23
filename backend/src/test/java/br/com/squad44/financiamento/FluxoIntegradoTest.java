@@ -118,6 +118,10 @@ class FluxoIntegradoTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.parcelas.length()").value(12))
         .andReturn());
+    assertEquals("52998224725", contrato.get("clienteCpf").asText());
+    assertEquals("veiculo", contrato.get("bemTipo").asText());
+    assertEquals("ABC1D23", contrato.get("bemIdentificacao").asText());
+    assertFalse(contrato.get("identificacaoComplementada").asBoolean());
     LocalDate contratadoEm = LocalDate.parse(contrato.get("contratadoEm").asText());
     for (int i = 0; i < 12; i++) {
       var parcela = detalhes.get("parcelas").get(i);
@@ -130,7 +134,7 @@ class FluxoIntegradoTest {
     mvc.perform(put("/api/bens/" + b.get("id").asText()).with(csrf()).session(session)
             .contentType("application/json")
             .content("""
-                {"descricao":"Descrição atualizada","condicaoBem":"novo","valorNumerico":20000}
+                {"descricao":"Descrição atualizada","identificacao":"OUTRA123","condicaoBem":"novo","valorNumerico":20000}
                 """))
         .andExpect(status().isOk());
 
@@ -144,11 +148,18 @@ class FluxoIntegradoTest {
     send("/api/propostas", proposta, other, 404);
     send("/api/auth/logout", "{}", session, 204);
     var again = login("52998224725");
+    var clienteEditado = clientes.findByCpfOrEmail("52998224725", "").orElseThrow();
+    clienteEditado.cpf = "12345678909";
+    clienteEditado.nome = "Nome atualizado";
+    clientes.save(clienteEditado);
     mvc.perform(get("/api/propostas").session(again)).andExpect(jsonPath("$.length()").value(2));
     mvc.perform(get(financiamento).session(again))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.contrato.bemDescricao").value("Carro teste"))
         .andExpect(jsonPath("$.contrato.valorBem").value(12500))
+        .andExpect(jsonPath("$.contrato.clienteCpf").value("52998224725"))
+        .andExpect(jsonPath("$.contrato.clienteNome").value("Pessoa Teste"))
+        .andExpect(jsonPath("$.contrato.bemIdentificacao").value("ABC1D23"))
         .andExpect(jsonPath("$.parcelas[11].valor").value(888.47));
   }
 

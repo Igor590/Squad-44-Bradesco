@@ -13,6 +13,8 @@ import { brl } from "../api";
 export default function HistoricoView({ historico = [] }) {
   const [busca, setBusca] = useState("");
   const [comprovanteAviso, setComprovanteAviso] = useState("");
+  const [erroPdf, setErroPdf] = useState("");
+  const [gerandoPdf, setGerandoPdf] = useState(false);
 
   const registrosFiltrados = historico.filter((item) => {
     const termo = busca.toLowerCase();
@@ -29,42 +31,25 @@ export default function HistoricoView({ historico = [] }) {
     0
   );
 
-  const handleBaixarComprovante = (item) => {
-    const comprovante = [
-      "COMPROVANTE DEMONSTRATIVO — PROJETO ACADÊMICO SQUAD 44",
-      `Identificador da simulação: ${item.idPagamento}`,
-      `Contrato: ${item.contratoId} | Bem: ${item.bemDescricao}`,
-      "Registro fictício, sem transação financeira.",
-      "------------------------------------------------------------",
-      `Parcela Quitada: ${String(item.numeroParcela).padStart(2, "0")}`,
-      `Valor Pago: ${brl(item.valorPago)}`,
-      `Meio de Pagamento: ${item.formaPagamento}`,
-      `Data da Quitação: ${item.dataPagamento}`,
-      item.observacao ? `Observação: ${item.observacao}` : "",
-      "------------------------------------------------------------",
-      "Comprovante emitido pelo Portal de Financiamentos - Squad 44.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const blob = new Blob([comprovante], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Comprovante_${item.contratoId}_P${item.numeroParcela}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    setComprovanteAviso(
-      `Comprovante da Parcela ${String(item.numeroParcela).padStart(2, "0")} baixado!`
-    );
-    setTimeout(() => setComprovanteAviso(""), 4000);
+  const handleBaixarComprovante = async (item) => {
+    if (gerandoPdf) return;
+    setGerandoPdf(true);
+    setErroPdf("");
+    setComprovanteAviso("");
+    try {
+      const { gerarComprovantePdf } = await import("../pdf/comprovante");
+      gerarComprovantePdf(item).save(`Comprovante-${item.idPagamento}.pdf`);
+      setComprovanteAviso(`Comprovante da parcela ${item.numeroParcela} baixado em PDF!`);
+    } catch {
+      setErroPdf("Não foi possível gerar o comprovante. Tente novamente.");
+    } finally {
+      setGerandoPdf(false);
+    }
   };
 
   return (
     <div className="auth-form">
+      {erroPdf && <p className="auth-alert error" role="alert">{erroPdf}</p>}
       <div
         style={{
           display: "flex",
@@ -94,7 +79,7 @@ export default function HistoricoView({ historico = [] }) {
           }}
         >
           <div style={{ fontSize: "0.72rem", opacity: 0.75 }}>
-            Total Amortizado ({historico.length}{" "}
+            Total Pago ({historico.length}{" "}
             {historico.length === 1 ? "pagamento" : "pagamentos"})
           </div>
           <strong style={{ fontSize: "1.1rem", color: "#10b981" }}>
@@ -232,6 +217,7 @@ export default function HistoricoView({ historico = [] }) {
                     alignItems: "center",
                     gap: "0.35rem",
                   }}
+                  disabled={gerandoPdf}
                   onClick={() => handleBaixarComprovante(item)}
                 >
                   <Download size={14} />
